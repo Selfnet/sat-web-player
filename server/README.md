@@ -1,0 +1,4 @@
+- install Python, pip, virtualenvwrapper
+- setup virtualenvwrapper for your shell
+- `mkvirtualenv -r requirements.txt -a $PWD multicast2websocket`
+- `./multicast2websocket.py`

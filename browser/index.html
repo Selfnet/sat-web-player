@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<meta charset=utf-8>
+<title>sat-web-player</title>
+<input id=address value="239.193.16.201:1234"><button type=button id=connect>Connect</button>
+<br>
+<span id=output>0</span> bytes received
+<script>
+    var ws = null;
+    var output = document.getElementById('output');
+    document.getElementById('connect').addEventListener('click', function() {
+	try {
+	    if (ws) {
+		ws.close();
+	    }
+	    var host = 'wss://' + window.location.hostname + "/multicast/" + document.getElementById('address').value;
+	    ws = new WebSocket(host);
+	    ws.onopen = function (e) { console.log("Socket opened."); };
+	    ws.onclose = function (e) { console.log("Socket closed."); };
+	    ws.onerror = function (e) { console.log("Socket error:", e); };
+	    ws.onmessage = function (e) {
+		var bytes = parseInt(output.textContent);
+		bytes += e.data.size;
+		output.textContent = bytes;
+	    };
+	} catch (ex) {
+	    console.log("Socket exception:", ex);
+	}
+    });
+</script>

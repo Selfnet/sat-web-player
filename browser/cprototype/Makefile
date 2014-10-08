@@ -1,14 +1,19 @@
 CFLAGS=-g -Wall `sdl-config --cflags` $(OPTFLAGS)
-LDLIBS=-lavcodec -lavformat -lavutil `sdl-config --libs`
+LDLIBS=-lavdevice -lswresample -lavcodec -lavformat -lavutil `sdl-config --libs`
+JSLIBS=$(patsubst -l%,lib%.so, $(LDLIBS))
 
-all: play avdev
+hybrid: list.o
 
-audio: CFLAGS+=-DAUDIO
-audio: LDLIBS+=-lavresample -lswresample
-audio: play
+html: CFLAGS=-Iffmpeg
+html: $(JSLIBS)
+	emcc $(CFLAGS) hybrid.c $(JSLIBS) -o hybrid.html
 
-avdev: LDLIBS+=-lavdevice
+fflibs:
+	@sh build_fflibs.sh
 
-.PHONY:
+$(JSLIBS): fflibs
+
 clean:
-	@rm -f play avdev
+	@rm -f play avdev hybrid hybrid.html *.so *.bc *.o
+
+.PHONY: clean fflibs

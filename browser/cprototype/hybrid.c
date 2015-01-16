@@ -6,7 +6,7 @@
 #include <SDL.h>
 #include "list.h"
 
-#define if_err_avlog(ret, msg, ...) if ((ret) < 0) {av_log (NULL, AV_LOG_ERROR, "%s:%i " msg ": %s\n", \
+#define checkav(ret, msg, ...) if ((ret) < 0) {av_log (NULL, AV_LOG_ERROR, "%s:%i " msg ": %s\n", \
             __FILE__,__LINE__, ##__VA_ARGS__, av_err2str (ret)); goto err;}
 #define check(ret, msg, ...) if (!(ret)) {fprintf (stderr, "%s:%i " msg "\n", \
             __FILE__,__LINE__, ##__VA_ARGS__); goto err;}
@@ -39,15 +39,12 @@ audio_decode (AudioState *as)
             if (!pkt) {
                 fprintf (stderr, "[DEBUG] No audio packet left. %i\n", seqno);
                 ret = -1;
-                goto end;
+                goto err;
             }
         }
 
         ret = avcodec_decode_audio4 (as->dec_ctx, as->src_frame, &got_frame, pkt);
-        if (ret < 0) {
-            fprintf (stderr, "[ERROR] Failed to decode audio: %s.\n", av_err2str (ret));
-            goto end;
-        }
+        checkav (ret, "[ERROR] Failed to decode audio");
 
         pkt->size -= ret;
         pkt->data += ret;
@@ -67,10 +64,9 @@ audio_decode (AudioState *as)
 
             ret = swr_convert (as->swr_ctx, &as->buf, as->buf_size,
                     as->src_frame->data, as->src_frame->nb_samples);
-            if (ret < 0) {
-                fprintf (stderr, "[ERROR] Failed to resample audio: %s.\n", av_err2str (ret));
-            }
-            fprintf (stderr, "[DEBUG] Decoded frame with %i bytes.\n", as->buf_size);
+            checkav (ret, "[ERROR] Failed to resample audio");
+
+            //fprintf (stderr, "[DEBUG] Decoded frame with %i bytes.\n", as->buf_size);
             as->buf_idx = 0;
 
             if (pkt->size > 0) {
@@ -82,7 +78,7 @@ audio_decode (AudioState *as)
         }
     }
 
-end:
+err:
     av_free_packet (pkt);
 nofree:
     return ret;
@@ -92,8 +88,8 @@ void
 audio_callback (void *userdata, Uint8 *stream, int len)
 {
     AudioState *as = (AudioState *) userdata;
-    fprintf (stderr, "\n[DEBUG] Entering audio callback.\n\tlen: %i\n\tas->buf_size: %i\n\tas->buf_idx: %i\n",
-            len, as->buf_size, as->buf_idx);
+    //fprintf (stderr, "\n[DEBUG] Entering audio callback.\n\tlen: %i\n\tas->buf_size: %i\n\tas->buf_idx: %i\n",
+            //len, as->buf_size, as->buf_idx);
 
     int ret, len1;
 
@@ -136,31 +132,32 @@ allocate_io (char *filename,
             *vid_dec_codec = NULL, *enc_codec  = NULL;
 
     ret = avformat_open_input (ifmtx, filename, 0, 0);
-    if_err_avlog (ret, "Failed to open input format context");
+    checkav (ret, "Failed to open input format context");
     ret = avformat_find_stream_info (*ifmtx, 0);
-    if_err_avlog (ret, "Failed to retrieve stream info");
+    checkav (ret, "Failed to retrieve stream info");
 
     av_dump_format (*ifmtx, 0, filename, 0);
 
 
     vid_index = av_find_best_stream (*ifmtx, AVMEDIA_TYPE_VIDEO, -1, -1, &vid_dec_codec, 0);
-    if_err_avlog (vid_index, "Failed to select video stream");
+    checkav (vid_index, "Failed to select video stream");
 
     *vid_in_stream = (*ifmtx)->streams [vid_index];
     ret = avcodec_open2 ((*vid_in_stream)->codec, vid_dec_codec, NULL);
-    if_err_avlog (ret, "Failed to open decoding context for stream #%i", vid_index);
+    checkav (ret, "Failed to open decoding context for stream #%i", vid_index);
 
 
-    aud_index = av_find_best_stream (*ifmtx, AVMEDIA_TYPE_VIDEO, -1, -1, &aud_dec_codec, 0);
-    if_err_avlog (aud_index, "Failed to select audeo stream");
+    aud_index = av_find_best_stream (*ifmtx, AVMEDIA_TYPE_AUDIO, -1, -1, &aud_dec_codec, 0);
+    checkav (aud_index, "Failed to select audio stream");
 
     *aud_in_stream = (*ifmtx)->streams [aud_index];
+    (*aud_in_stream)->codec->channel_layout = 0;
     ret = avcodec_open2 ((*aud_in_stream)->codec, aud_dec_codec, NULL);
-    if_err_avlog (ret, "Failed to open decoding context for stream #%i", aud_index);
+    checkav (ret, "Failed to open decoding context for stream #%i", aud_index);
 
 
     ret = avformat_alloc_output_context2 (ofmtx, NULL, "SDL", NULL);
-    if_err_avlog (ret, "Failed to open output format context");
+    checkav (ret, "Failed to open output format context");
 
     enc_codec  = avcodec_find_encoder_by_name ("rawvideo");
     *vid_out_stream = avformat_new_stream (*ofmtx, enc_codec);
@@ -170,7 +167,7 @@ allocate_io (char *filename,
     (*vid_out_stream)->codec->pix_fmt = (*vid_in_stream)->codec->pix_fmt;
 
     ret = avcodec_open2 ((*vid_out_stream)->codec, enc_codec, NULL);
-    if_err_avlog (ret, "Failed to open encoding context for rawvideo stream");
+    checkav (ret, "Failed to open encoding context for rawvideo stream");
 
     av_dump_format (*ofmtx, 0, NULL, 1);
 
@@ -200,16 +197,17 @@ cfg_audio (SDL_AudioSpec *spec, AudioState *as, AVCodecContext *dec_ctx)
     check (as->swr_ctx, "Failed to allocate audio resampling context.");
 
     av_opt_set_int (as->swr_ctx, "in_channel_layout", dec_ctx->channel_layout, 0);
+    //av_opt_set_int (as->swr_ctx, "in_channel_count", dec_ctx->sample_rate, 0);
     av_opt_set_int (as->swr_ctx, "in_sample_rate", dec_ctx->sample_rate, 0);
     av_opt_set_sample_fmt (as->swr_ctx, "in_sample_fmt", dec_ctx->sample_fmt, 0);
 
     av_opt_set_int (as->swr_ctx, "out_channel_layout", dec_ctx->channel_layout, 0);
+    //av_opt_set_int (as->swr_ctx, "out_channel_count", dec_ctx->sample_rate, 0);
     av_opt_set_int (as->swr_ctx, "out_sample_rate", dec_ctx->sample_rate, 0);
-    av_opt_set_sample_fmt (as->swr_ctx, "out_sample_fmt",
-            av_get_packed_sample_fmt (dec_ctx->sample_fmt), 0);
+    av_opt_set_sample_fmt (as->swr_ctx, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
 
     ret = swr_init (as->swr_ctx);
-    if_err_avlog (ret, "Failed to initialize audio resampling context.");
+    checkav (ret, "Failed to initialize audio resampling context");
 
     spec->freq     = dec_ctx->sample_rate;
     spec->format   = AUDIO_S16SYS;
@@ -317,7 +315,7 @@ main (int argc, char **argv)
     if (ret < 0) goto err;
 
     ret = avformat_write_header(ofmtx, NULL);
-    if_err_avlog (ret, "Failed to init SDL output device");
+    checkav (ret, "Failed to init SDL output device");
 
     if (SDL_WasInit (SDL_INIT_AUDIO) != 0) {
         ret = SDL_InitSubSystem (SDL_INIT_AUDIO);
@@ -335,7 +333,7 @@ main (int argc, char **argv)
     while (1) {
         av_init_packet (& pkt);
         ret = av_read_frame (ifmtx, &pkt);
-        if_err_avlog (ret, "Failed to read next frame from input");
+        checkav (ret, "Failed to read next frame from input");
 
         if (pkt.stream_index == vid_in_stream->index) {
             npkt.size = 0;
@@ -350,14 +348,17 @@ main (int argc, char **argv)
             }
 
             ret = av_interleaved_write_frame (ofmtx, &npkt);
-            if_err_avlog (ret, "Failed to write video frame to output");
+            checkav (ret, "Failed to write video frame to output");
             av_free_packet (&npkt);
         } else
         if (pkt.stream_index == aud_in_stream->index) {
             AVPacket *cpkt = calloc (1, sizeof (AVPacket));
             check (cpkt, "Failed to copy audio packet.");
             av_copy_packet (cpkt, &pkt);
+
+            SDL_LockAudio ();
             List_append (audio_pkt_list, (void *) cpkt, aframes++);
+            SDL_UnlockAudio ();
         }
 
 

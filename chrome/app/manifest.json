@@ -1,0 +1,18 @@
+{
+    "manifest_version": 2,
+    "name": "Selfnet IPTV App",
+    "version": "0.0.1",
+
+    "app": {
+        "background": {
+            "scripts": ["main.js"]
+        }
+    },
+
+    "sockets": {
+        "udp": {
+            "bind": "*",
+            "multicastMembership": ""
+        }
+    }
+}

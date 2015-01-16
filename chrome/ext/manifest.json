@@ -1,0 +1,13 @@
+{
+    "manifest_version": 2,
+    "name": "Selfnet IPTV Extension",
+    "version": "0.0.1",
+
+    "content_scripts": [
+        {
+            "run_at": "document_end",
+            "matches": ["http://stream.selfnet.de/vlc.html"],
+            "js": ["content.js"]
+        }
+    ]
+}

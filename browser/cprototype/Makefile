@@ -14,6 +14,6 @@ fflibs:
 $(JSLIBS): fflibs
 
 clean:
-	@rm -f play avdev hybrid hybrid.html *.so *.bc *.o
+	@rm -f hybrid hybrid.html *.so *.bc *.o
 
 .PHONY: clean fflibs

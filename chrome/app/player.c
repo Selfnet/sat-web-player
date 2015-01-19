@@ -1,39 +1,25 @@
 #include "boiler.h"
+#include "ppapi/c/ppp_messaging.h"
+#include "list.h"
+//#include "ffmpeg.h"
 
-typedef struct {
-    PP_Instance instance;
-} UDPArgs;
-
-const PPB_NetAddress *G_PPB_NETADDRESS = NULL;
-const PPB_UDPSocket  *G_PPB_UDPSOCKET  = NULL;
-
-void *
-UDPThread (void *args)
-{
-    PP_Instance instance = ((UDPArgs *) args)->instance;
-    PP_Resource socket = G_PPB_UDPSOCKET->Create (instance);
-    check (socket != 0, "Failed to create UDP socket.");
-
-    struct PP_NetAddress_IPv4 addrv4 = {
-        .port = 1234,
-        .addr = {0, 0, 0, 0}
-    };
-    PP_Resource naddr =
-            G_PPB_NETADDRESS->CreateFromIPv4Address (instance,
-                                                     &addrv4);
-    check (naddr != 0,
-            "Failed to create address from v4 struct.");
-
-error:
-    return NULL;
-}
+List *packets = NULL;
 
 PP_Bool
-DidCreate (PP_Instance inst, uint32_t argc, const char** argn, const char** argv)
+DidCreate (PP_Instance instance, uint32_t argc, const char** argn, const char** argv)
 {
-    debug ("Started module.");
+    debug ("Started new instance.");
+
+    packets = List_new ();
 
     return PP_TRUE;
+}
+
+void
+HandleMessage (PP_Instance instance, struct PP_Var msg)
+{
+    void *pmsg = malloc (sizeof (struct PP_Var));
+    if (pmsg) List_append (packets, pmsg);
 }
 
 const void *
@@ -44,6 +30,12 @@ PPP_GetInterface (const char *name)
             &DidCreate, &DidDestroy, &DidChangeView, &DidChangeFocus, &HandleDocumentLoad
         };
         return &ii;
+    } else
+    if (strcmp (name, PPP_MESSAGING_INTERFACE) == 0) {
+        static PPP_Messaging mi = {
+            &HandleMessage
+        };
+        return &mi;
     } else
     return NULL;
 }
@@ -56,8 +48,6 @@ PPP_InitializeModule (PP_Module mod, PPB_GetInterface gbi)
 
     fetch_interface (VAR);
     fetch_interface (CONSOLE);
-    fetch_interface (UDPSOCKET);
-    fetch_interface (NETADDRESS);
 
     return PP_OK;
 }

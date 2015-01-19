@@ -1,5 +1,8 @@
+CC=pnacl-clang
 CFLAGS=-g -I$(NACL_SDK_ROOT)/include
-LDLIBS=-lm -lppapi
+LDLIBS=-lm -lppapi list.o
+
+player.c: list.o
 
 %.pexe: %.c
 	pnacl-clang $(CFLAGS) -o $*.bc $*.c $(LDLIBS)
@@ -12,4 +15,4 @@ serve:
 	httpd.py --no-dir-check
 
 clean:
-	rm -f *.pexe *irt *.nexe *.bc
+	rm -f *.pexe *irt *.nexe *.bc *.o

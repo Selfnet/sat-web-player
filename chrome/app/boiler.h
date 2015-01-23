@@ -14,7 +14,6 @@
 #include "ppapi/c/ppb_console.h"
 #include "ppapi/c/ppb_var.h"
 
-PP_Module module = {0};
 PPB_GetInterface get_browser_interface = NULL;
 const PPB_Console *G_PPB_CONSOLE = NULL;
 const PPB_Var *G_PPB_VAR = NULL;
@@ -35,10 +34,11 @@ void __logf (PP_Instance inst, PP_LogLevel lvl, const char *fmt, ...)
     G_PPB_CONSOLE->Log (inst, lvl, make_var (msg));
 }
 
+// copied almost verbatim from Zed Shaw's dbg.h which is part of lcthw
 #ifdef NDEBUG
 #define debug(M, ...)
 #else
-#define debug(M, ...)  __logf (instance, PP_LOGLEVEL_LOG, "DEBUG %s:%d: " M "\n", __FILE__, __LINE__, ##__VA_ARGS__)
+#define debug(M, ...)  __logf (instance, PP_LOGLEVEL_LOG, "[DEBUG] %s:%d: " M "\n", __FILE__, __LINE__, ##__VA_ARGS__)
 #endif
 
 #define log_err(M, ...) __logf(instance, PP_LOGLEVEL_LOG, "[ERROR] (%s:%s:%d) " M "\n", __FILE__, __func__, __LINE__, ##__VA_ARGS__)
@@ -54,6 +54,8 @@ void __logf (PP_Instance inst, PP_LogLevel lvl, const char *fmt, ...)
 #define check_mem(A) check((A), "Out of memory.")
 
 #define check_debug(A, M, ...) if(!(A)) { debug(M, ##__VA_ARGS__); goto error; }
+
+#define check_info(A, M, ...) if(!(A)) { log_info(M, ##__VA_ARGS__); goto error; }
 
 void
 DidDestroy (PP_Instance inst) {}

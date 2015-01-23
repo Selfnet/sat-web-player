@@ -1,12 +1,9 @@
-var module;
 var sock;
 
 var ip   = "239.192.0.42";
 var port = 1234;
 
-document.onload = function () {
-    module = document.getElementById ("player-module");
-}
+var module = document.getElementById ("player-module");
 
 chrome.sockets.udp.create ({"name": "stream source"}, function (create_info) {
     sock = create_info.socketId;
@@ -36,8 +33,8 @@ chrome.sockets.udp.onReceive.addListener (function (pkt) {
     if (pkt.socketId != sock) return;
 
     if (module) {
-        if (packets.length () < 10) {
-            packets.append (pkt);
+        if (packets.length () < 10000) {
+            packets.append (pkt.data);
         } else {
             module.postMessage (packets);
             packets = [];

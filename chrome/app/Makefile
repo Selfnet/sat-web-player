@@ -1,6 +1,8 @@
 CC=pnacl-clang
-CFLAGS=-g -I$(NACL_SDK_ROOT)/include
-LDLIBS=-lm -lppapi list.o
+CFLAGS=-g -I$(NACL_SDK_ROOT)/include \
+		  -I$(NACL_SDK_ROOT)/naclports/src/out/build/ffmpeg/install_pnacl/payload/include \
+ 	   	  -L$(NACL_SDK_ROOT)/naclports/src/out/build/ffmpeg/install_pnacl/payload/lib
+LDLIBS=-lppapi list.o -lavformat -lavcodec -lavutil -lm
 
 player.c: list.o
 

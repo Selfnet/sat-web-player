@@ -47,6 +47,8 @@ void __logf (PP_Instance inst, PP_LogLevel lvl, const char *fmt, ...)
 
 #define log_info(M, ...) __logf(instance, PP_LOGLEVEL_LOG, "[INFO] (%s:%s:%d) " M "\n", __FILE__, __func__, __LINE__, ##__VA_ARGS__)
 
+#define log_var(V) G_PPB_CONSOLE->Log (instance, PP_LOGLEVEL_LOG, V);
+
 #define check(A, M, ...) if(!(A)) { log_err(M, ##__VA_ARGS__); goto error; }
 
 #define sentinel(M, ...) { log_err (M, ##__VA_ARGS__); goto error; }

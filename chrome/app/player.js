@@ -30,17 +30,14 @@ function join (sock) {
 
 var packets = []
 chrome.sockets.udp.onReceive.addListener (function (pkt) {
+
     if (pkt.socketId != sock) return;
 
-    if (module) {
-        if (packets.length () < 10000) {
-            packets.append (pkt.data);
-        } else {
-            module.postMessage (packets);
-            packets = [];
-        }
+    if (packets.length < 100) {
+        packets.push (pkt.data);
     } else {
-        console.log ("Module not loaded yet.");
+        module.postMessage (packets);
+        packets = [];
     }
 });
 

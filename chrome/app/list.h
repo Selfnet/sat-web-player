@@ -22,3 +22,6 @@ void List_free (List *l, List_free_data free_d);
 void List_append (List *l, void *data);
 void List_insert (List *l, void *data);
 void List_take (List *l,  void **data);
+void List_append_locked (List *l, void *data);
+void List_insert_locked (List *l, void *data);
+void List_take_locked (List *l,  void **data);

@@ -68,7 +68,72 @@ error:
 void List_append (List *l, void *data)
 {
     if (!l) return;
-    int ret = pthread_mutex_trylock (l->lock);
+
+    ListElem *el = List_newelem (data);
+
+    if (l->first == NULL) {
+        l->first = el;
+    } else {
+        l->last->next = el;
+    }
+    l->last = el;
+    l->len++;
+
+error:
+    return;
+}
+
+/* Add a new element at the beginning of the list with the provided data
+ * pointer
+ */
+void List_insert (List *l, void *data)
+{
+    if (!l) goto error;
+
+    ListElem *el = List_newelem (data);
+    if (l->first == NULL) {
+        l->last = el;
+    }  else {
+        el->next = l->first;
+    }
+    l->first = el;
+    l->len++;
+
+error:
+    return;
+}
+
+/* Remove the first element from the list and write its data to the provided
+ * pointer
+ */
+void List_take (List *l, void **data)
+{
+    if (!l || !l->first) goto error;
+
+    ListElem *el = l->first;
+    if (l->first == l->last) {
+        l->last = NULL;
+    }
+    l->first = el->next;
+
+    *data = el->data;
+    l->len--;
+
+    free (el);
+
+    return;
+
+error:
+    *data = NULL;
+}
+
+/* Lock the list and add a new element at the end of the list with the provided data
+ * pointer
+ */
+void List_append_locked (List *l, void *data)
+{
+    if (!l) return;
+    int ret = pthread_mutex_lock (l->lock);
 
     check (ret == 0 || ret == EBUSY, "Failed to aquire lock for the list.");
 
@@ -82,19 +147,19 @@ void List_append (List *l, void *data)
     l->last = el;
     l->len++;
 
-    if (ret != EBUSY) pthread_mutex_unlock (l->lock);
+    pthread_mutex_unlock (l->lock);
 
 error:
     return;
 }
 
-/* Add a new element at the beginning of the list with the provided data
+/* Lock the list and add a new element at the beginning of the list with the provided data
  * pointer
  */
-void List_insert (List *l, void *data)
+void List_insert_locked (List *l, void *data)
 {
     if (!l) return;
-    int ret = pthread_mutex_trylock (l->lock);
+    int ret = pthread_mutex_lock (l->lock);
 
     check (ret == 0 || ret == EBUSY, "Failed to aquire lock for the list.");
 
@@ -113,13 +178,13 @@ error:
     return;
 }
 
-/* Remove the first element from the list and write its data to the provided
+/* Lock the list and remove the first element from the list and write its data to the provided
  * pointer
  */
-void List_take (List *l, void **data)
+void List_take_locked (List *l, void **data)
 {
     if (!l || !l->first) return;
-    int ret = pthread_mutex_trylock (l->lock);
+    int ret = pthread_mutex_lock (l->lock);
 
     check (ret == 0 || ret == EBUSY, "Failed to aquire lock for the list.");
 

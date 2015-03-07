@@ -23,7 +23,7 @@ const PPB_Var *G_PPB_VAR = NULL;
 #define make_var(s) G_PPB_VAR->VarFromUtf8(s, strlen (s))
 #define make_str(s, l) G_PPB_VAR->VarToUtf8(s, l)
 
-void __logf (PP_Instance inst, PP_LogLevel lvl, const char *fmt, ...)
+static void _logf (PP_Instance inst, PP_LogLevel lvl, const char *fmt, ...)
 {
     char msg[256] = {0};
     va_list ap;
@@ -38,14 +38,14 @@ void __logf (PP_Instance inst, PP_LogLevel lvl, const char *fmt, ...)
 #ifdef NDEBUG
 #define debug(M, ...)
 #else
-#define debug(M, ...)  __logf (instance, PP_LOGLEVEL_LOG, "[DEBUG] %s:%d: " M "\n", __FILE__, __LINE__, ##__VA_ARGS__)
+#define debug(M, ...)  _logf (instance, PP_LOGLEVEL_LOG, "[DEBUG] %s:%d: " M "\n", __FILE__, __LINE__, ##__VA_ARGS__)
 #endif
 
-#define log_err(M, ...) __logf(instance, PP_LOGLEVEL_LOG, "[ERROR] (%s:%s:%d) " M "\n", __FILE__, __func__, __LINE__, ##__VA_ARGS__)
+#define log_err(M, ...) _logf(instance, PP_LOGLEVEL_LOG, "[ERROR] (%s:%s:%d) " M "\n", __FILE__, __func__, __LINE__, ##__VA_ARGS__)
 
-#define log_warn(M, ...) __logf(instance, PP_LOGLEVEL_LOG, "[WARN] (%s:%s:%d) " M "\n", __FILE__, __func__, __LINE__, ##__VA_ARGS__)
+#define log_warn(M, ...) _logf(instance, PP_LOGLEVEL_LOG, "[WARN] (%s:%s:%d) " M "\n", __FILE__, __func__, __LINE__, ##__VA_ARGS__)
 
-#define log_info(M, ...) __logf(instance, PP_LOGLEVEL_LOG, "[INFO] (%s:%s:%d) " M "\n", __FILE__, __func__, __LINE__, ##__VA_ARGS__)
+#define log_info(M, ...) _logf(instance, PP_LOGLEVEL_LOG, "[INFO] (%s:%s:%d) " M "\n", __FILE__, __func__, __LINE__, ##__VA_ARGS__)
 
 #define log_var(V) G_PPB_CONSOLE->Log (instance, PP_LOGLEVEL_LOG, V);
 

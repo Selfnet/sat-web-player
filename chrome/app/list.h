@@ -25,3 +25,5 @@ void List_take (List *l,  void **data);
 void List_append_locked (List *l, void *data);
 void List_insert_locked (List *l, void *data);
 void List_take_locked (List *l,  void **data);
+
+#define List_empty(l) ((l)->first == NULL)

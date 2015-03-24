@@ -13,19 +13,9 @@ CONFIG=Debug
 
 all: player.nexe
 
-%.pexe: list.o
-	$(CC) $(CFLAGS) -o $*.bc $*.c $(LDLIBS)
-	pnacl-finalize -o $*.pexe $*.bc --compress
-
 %.nexe: list.o
-	$(CC) $(CFLAGS) -o $*.nexe $*.c $(LDLIBS)
-	create_nmf.py -o $*.nmf $*.nexe
-
-%.nmf: %.pexe
-	create_nmf.py -o $*.nmf -x portable:pnacl-debug $*.bc $*.pexe
-
-serve:
-	httpd.py --no-dir-check
+	$(CC) $(CFLAGS) -o _platform_specific/x86_64/$*.nexe $*.c $(LDLIBS)
+	create_nmf.py -o $*.nmf _platform_specific/x86_64/$*.nexe
 
 clean:
 	rm -f *.pexe *irt *.nexe *.bc *.o

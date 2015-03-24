@@ -5,14 +5,22 @@ var port = 1234;
 
 var module = document.getElementById ("player-module");
 
-chrome.sockets.udp.create ({"name": "stream source"}, function (create_info) {
-    sock = create_info.socketId;
-    if (sock == undefined) {
-        console.log ("Appears that getting a socket failed, bailing.");
-        return;
-    }
+chrome.sockets.udp.getSockets (function (sock_infos) {
+    if (sock_infos.length == 0) {
+        chrome.sockets.udp.create ({"persistent": true,
+                                    "name": "stream source"}, function (create_info) {
+            sock = create_info.socketId;
+            if (sock == undefined) {
+                console.log ("Appears that getting a socket failed, bailing.");
+                return;
+            }
 
-    bind (sock);
+            bind (sock);
+        });
+    } else {
+        sock = sock_infos [0].socketId;
+        join (sock);
+    }
 });
 
 function bind (sock) {
@@ -30,7 +38,6 @@ function join (sock) {
 
 var packets = []
 chrome.sockets.udp.onReceive.addListener (function (pkt) {
-
     if (pkt.socketId != sock) return;
 
     if (packets.length < 100) {

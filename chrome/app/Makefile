@@ -19,7 +19,7 @@ all: player.nexe
 
 %.nexe: list.o
 	$(CC) $(CFLAGS) -o $*.nexe $*.c $(LDLIBS)
-	create_nmf -o $*.nmf $*.nexe
+	create_nmf.py -o $*.nmf $*.nexe
 
 %.nmf: %.pexe
 	create_nmf.py -o $*.nmf -x portable:pnacl-debug $*.bc $*.pexe

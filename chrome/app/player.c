@@ -4,6 +4,8 @@
 #include "ppapi/c/ppb_var_array_buffer.h"
 #include "ppapi/c/ppb_audio.h"
 #include "ppapi/c/ppb_audio_config.h"
+#include "ppapi/c/ppb_message_loop.h"
+#include "ppapi/c/ppb_audio_config.h"
 
 #include <pthread.h>
 #include <string.h>
@@ -23,7 +25,9 @@ const PPB_Audio          *G_PPB_AUDIO            = NULL;
 const PPB_AudioConfig    *G_PPB_AUDIO_CONFIG     = NULL;
 const PPB_VarArrayBuffer *G_PPB_VAR_ARRAY_BUFFER = NULL;
 const PPB_VarArray       *G_PPB_VAR_ARRAY        = NULL;
+const PPB_MessageLoop    *G_PPB_MESSAGELOOP     = NULL;
 
+// wrapper around buffers of incoming data packets
 typedef struct {
     struct PP_Var var;
     void *buf;
@@ -31,11 +35,13 @@ typedef struct {
     uint32_t idx;
 } Packet;
 
+// State for AVIO refill callback
 typedef struct {
     PP_Instance instance;
     List *packets;
 } RefillData;
 
+// Arguments for decoding thread
 typedef struct {
     PP_Instance instance;
     AVFormatContext *fmt_ctx;
@@ -43,6 +49,13 @@ typedef struct {
     AVStream *vid_in;
 } DecoderArgs;
 
+// Arguments for MessageLoop thread
+typedef struct {
+    PP_Instance instance;
+    PP_Resource msg_loop;
+} MessageLoopArgs;
+
+// State for audio processing
 typedef struct {
     uint8_t *buf;
     int      buf_size;
@@ -60,8 +73,10 @@ List *packets = NULL;
 List *aud_frames = NULL;
 // video frames
 List *vid_frames = NULL;
-// thread id of decoding thread
+// thread id of Decoder thread
 pthread_t decoder_thread = {0};
+// thread id of MessageLoop thread
+pthread_t messageloop_thread = {0};
 // instance id
 PP_Instance instance = {0};
 
@@ -152,25 +167,25 @@ audio_callback (void *buf, uint32_t len, PP_TimeDelta latency, void *data)
 
     return;
 err:
-    debug ("Outputting silence.");
     memset (buf, 0, len);
 }
 
 int
-refill (void *data, uint8_t *buf, int buf_size)
+refill_avio (void *data, uint8_t *buf, int buf_size)
 {
     //List *packets        = ((RefillData *) data)->packets;
     //PP_Instance instance = ((RefillData *) data)->instance;
-    debug ("Refilling AVIOContext.");
 
     int ret = pthread_mutex_lock (packets->lock);
-    check (ret == 0, "Failed to lock packet list lock while trying to refill AVIOContext.");
+    // Failed to lock packet list lock while trying to refill AVIOContext.
+    if (ret != 0) goto error;
 
     Packet *pkt = NULL;
     int left, len;
     while (buf_size > 0) {
-        if (pkt == NULL) List_take (packets, (void *) pkt);
-        check (pkt != NULL, "Packet list is emtpy, cannot refill AVIOContext.")
+        if (pkt == NULL) List_take (packets, (void **) &pkt);
+        // Packet list is emtpy, cannot refill AVIOContext.
+        if (pkt == NULL) goto error;
 
         left = pkt->len - pkt->idx;
         len = min (left, buf_size);
@@ -218,7 +233,7 @@ allocate_io (AVFormatContext **ifmtx,
     check (avio_ctx_buffer != NULL, "Failed to allocate buffer for AVIOContext.");
 
     avio_ctx = avio_alloc_context (avio_ctx_buffer, avio_ctx_buffer_size, 1, NULL,
-                                   refill, NULL, NULL);
+                                   refill_avio, NULL, NULL);
     check (avio_ctx != NULL, "Failed to allocate AVIOContext.");
 
 
@@ -297,9 +312,15 @@ VideoThread (void *data)
     return NULL;
 }
 
+/*
+ * Background thread to read frames from ffmpeg and sort them into audio/video
+ * queues
+ */
 void *
 DecoderThread (void *data)
 {
+    debug ("Decoder thread started.");
+
     int ret = 0;
     DecoderArgs *args = (DecoderArgs *) data;
     AVPacket pkt, *cpkt;
@@ -332,37 +353,63 @@ error:
     return NULL;
 }
 
-PP_Bool
-DidCreate (PP_Instance inst, uint32_t argc, const char** argn, const char** argv)
+/*
+ * MessageLoop thread for ffmpeg processing stuff
+ */
+void *
+MessageLoopThread (void *data)
 {
-    check (packets == NULL, "Cannot have multiple instances due to laz… important technical limitations.");
+    int32_t ret;
+    PP_Resource msg_loop = ((MessageLoopArgs *) data)->msg_loop;
+    PP_Instance instance = ((MessageLoopArgs *) data)->instance;
 
-    instance = inst;
+    debug ("MessageLoop thread started.");
 
+    ret = G_PPB_MESSAGELOOP->AttachToCurrentThread (msg_loop);
+    check (ret == PP_OK, "Failed to attach message loop to thread.");
+
+    ret = G_PPB_MESSAGELOOP->Run (msg_loop);
+    check (ret == PP_OK, "Failed to run message loop on thread.");
+
+    debug ("Message loop shut down orderly.");
+
+error:
+    return NULL;
+}
+
+// arguments are not used right now and are only there to make it compatible
+// with the PPAPI callback typedef
+/*
+ * Setup ffmpeg and audio stuff and spawn background threads for decoding and stuff
+ */
+void
+start_streaming (void *data, int32_t result)
+{
     AudioState *audio_state = NULL;
     DecoderArgs *dec_args = NULL;
 
     int ret = 0;
 
-    av_register_all ();
-
-    packets = List_new ();
+    aud_frames = List_new ();
     vid_frames = List_new ();
+
+    debug ("FFMPEG init started.");
+
     check (packets != NULL && vid_frames != NULL && aud_frames != NULL,
            "Failed to allocate frame and packet lists.");
 
     dec_args = calloc (1, sizeof (DecoderArgs));
-    check (dec_args != NULL, "Failed to allocate decoder arguments.");
-
-    dec_args->instance = instance;
-
-    ret = allocate_io (&(dec_args->fmt_ctx), &(dec_args->aud_in), &(dec_args->vid_in));
-    check (ret < 0, "Failed to initialize decoder arguments.");
+    check (dec_args != NULL, "Failed to allocate Decoder thread arguments.");
 
     audio_state = calloc (1, sizeof (AudioState));
     check (audio_state != NULL, "Failed to allocate audio state.");
 
-    audio_state->pkt_list = aud_frames;
+    av_register_all ();
+    ret = allocate_io (&(dec_args->fmt_ctx), &(dec_args->aud_in), &(dec_args->vid_in));
+    check (ret < 0, "Failed to initialize decoder arguments.");
+
+    dec_args->instance = instance;
+
     ret = cfg_audio (audio_state, dec_args->aud_in->codec);
     check (ret == 0, "Failed to initialize audio state.");
     aud_frames = audio_state->pkt_list;
@@ -382,18 +429,48 @@ DidCreate (PP_Instance inst, uint32_t argc, const char** argn, const char** argv
 
     pthread_create (&decoder_thread, NULL, DecoderThread, dec_args);
     //pthread_create (&video_thread);
-    debug ("Started new instance: %i.", instance);
-    return PP_TRUE;
 
 error:
     if (packets) List_free (packets, NULL);
     if (vid_frames) List_free (vid_frames, NULL);
     if (aud_frames) List_free (aud_frames, NULL);
-    //if (rfdata) free (rfdata);
     if (dec_args) {
         if (dec_args->fmt_ctx) avformat_close_input (&(dec_args->fmt_ctx));
         free (dec_args);
     }
+}
+
+PP_Bool
+DidCreate (PP_Instance inst, uint32_t argc, const char** argn, const char** argv)
+{
+    int32_t ret = 0;
+
+    check (packets == NULL, "Cannot have multiple instances due to laz… important technical limitations.");
+
+    instance = inst;
+    packets = List_new ();
+
+    PP_Resource ffmpeg_loop = G_PPB_MESSAGELOOP->Create (instance);
+    struct PP_CompletionCallback streaming_cb = {
+        .func = start_streaming,
+        .user_data = NULL
+    };
+    G_PPB_MESSAGELOOP->PostWork (ffmpeg_loop, streaming_cb, 0);
+
+    MessageLoopArgs *margs = calloc (1, sizeof (MessageLoopArgs));
+    check (margs != NULL, "Failed to alloc MessageLoop thread arguments.");
+
+    ret = pthread_create (&messageloop_thread, NULL, MessageLoopThread, margs);
+    check (ret == 0, "Failed to create MessageLoop thread.");
+
+    debug ("Started new instance: %u.", instance);
+    return PP_TRUE;
+
+error:
+    // we really should cancel the thread here, but apparently pthread_cancel is
+    // not implemented
+    //if (messageloop_thread) pthread_cancel (messageloop_thread);
+
     return PP_FALSE;
 }
 
@@ -427,6 +504,7 @@ HandleMessage (PP_Instance instance, struct PP_Var msg_array)
         pkt->buf = G_PPB_VAR_ARRAY_BUFFER->Map (pkt->var);
         // for now we just ignore the RTP header
         pkt->idx = 8;
+        pkt->len = len - 8;
         List_append (packets, pkt);
     }
 
@@ -463,6 +541,7 @@ PPP_InitializeModule (PP_Module mod, PPB_GetInterface gbi)
     fetch_interface (VAR_ARRAY);
     fetch_interface (VAR_ARRAY_BUFFER);
     fetch_interface (AUDIO);
+    fetch_interface (MESSAGELOOP);
     fetch_interface (AUDIO_CONFIG);
 
     return PP_OK;

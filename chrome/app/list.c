@@ -108,7 +108,7 @@ error:
  */
 void List_take (List *l, void **data)
 {
-    if (!l || !l->first) goto error;
+    if (!l || !l->first || !data) goto error;
 
     ListElem *el = l->first;
     if (l->first == l->last) {
@@ -124,7 +124,7 @@ void List_take (List *l, void **data)
     return;
 
 error:
-    *data = NULL;
+    if (data) *data = NULL;
 }
 
 /* Lock the list and add a new element at the end of the list with the provided data

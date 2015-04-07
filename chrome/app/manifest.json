@@ -14,12 +14,5 @@
             "bind": "*",
             "multicastMembership": ""
         }
-    },
-
-    "platforms": [
-        {
-            "nacl_arch": "x86-64",
-            "sub_package_path": "_platform_specific/x86-64/"
-        }
-    ]
+    }
 }

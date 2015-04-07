@@ -3,7 +3,17 @@ var sock;
 var ip   = "239.192.0.42";
 var port = 1234;
 
-var module = document.getElementById ("player-module");
+var module    = document.createElement ("embed");
+module.id     = "player-module"
+module.width  = 0
+module.height = 0
+// this is not very cool, because this references toolchain and debug type, but
+// I haven't found a way yet to transparently map paths from my dev directory
+// to the final app path. At least not without packaging
+module.src    = chrome.runtime.getURL ("glibc/Debug/player.nmf")
+module.type   = "application/x-nacl"
+
+document.getElementById ("player-container").appendChild (module);
 
 chrome.sockets.udp.getSockets (function (sock_infos) {
     if (sock_infos.length == 0) {

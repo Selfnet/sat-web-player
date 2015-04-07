@@ -1,21 +1,14 @@
-CC=x86_64-nacl-gcc
-PKG_CONFIG_LIBDIR=$(NACL_SDK_ROOT)/toolchain/linux_x86_glibc/x86_64-nacl/usr/lib/pkgconfig
-CFLAGS=-g -I$(NACL_SDK_ROOT)/include\
-	   -L$(NACL_SDK_ROOT)/lib/glibc_x86_64/Debug\
-		$(shell env PKG_CONFIG_LIBDIR=$(PKG_CONFIG_LIBDIR)\
-		  pkg-config --cflags libavformat libavutil libavcodec\
-	  	  libswresample)
-LDLIBS=list.o $(shell env PKG_CONFIG_LIBDIR=$(PKG_CONFIG_LIBDIR)\
-				pkg-config --libs libavformat libavutil libavcodec\
-				libswresample) -lppapi
-TOOLCHAIN=glibc
+VALID_TOOLCHAINS=glibc newlib
 CONFIG=Debug
+include $(NACL_SDK_ROOT)/tools/common.mk
 
-all: player.nexe
+CFLAGS=-g -O0
+LIBS=avformat avcodec swresample avutil vorbis vorbisenc ogg theora theoradec theoraenc mp3lame z ppapi pthread
 
-%.nexe: list.o
-	$(CC) $(CFLAGS) -o _platform_specific/x86_64/$*.nexe $*.c $(LDLIBS)
-	create_nmf.py -o $*.nmf _platform_specific/x86_64/$*.nexe
+TARGET=player
+SOURCES=player.c list.c
 
-clean:
-	rm -f *.pexe *irt *.nexe *.bc *.o
+# copying this from the sdk demos
+$(foreach src,$(SOURCES),$(eval $(call COMPILE_RULE,$(src),$(CFLAGS))))
+$(eval $(call LINK_RULE,$(TARGET),$(SOURCES),$(LIBS),$(DEPS)))
+$(eval $(call NMF_RULE,$(TARGET),))

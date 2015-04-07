@@ -1,18 +1,9 @@
-TOOLCHAIN=glibc
+VALID_TOOLCHAINS=glibc newlib
 CONFIG=Debug
 include $(NACL_SDK_ROOT)/tools/common.mk
 
-PKG_CONFIG_LIBDIR=$(NACL_SDK_ROOT)/toolchain/linux_x86_glibc/x86_64-nacl/usr/lib/pkgconfig
-#CFLAGS=-g -O0 -I$(NACL_SDK_ROOT)/include\
-	   -L$(NACL_SDK_ROOT)/lib/glibc_x86_64/Debug\
-		$(shell env PKG_CONFIG_LIBDIR=$(PKG_CONFIG_LIBDIR)\
-		  pkg-config --cflags libavformat libavutil libavcodec\
-	  	  libswresample)
-#LIBS=list.o $(shell env PKG_CONFIG_LIBDIR=$(PKG_CONFIG_LIBDIR)\
-				pkg-config --libs libavformat libavutil libavcodec\
-				libswresample) -lppapi
 CFLAGS=-g -O0
-LIBS=avformat avcodec swresample avutil ppapi pthread
+LIBS=avformat avcodec swresample avutil vorbis vorbisenc ogg theora theoradec theoraenc mp3lame z ppapi pthread
 
 TARGET=player
 SOURCES=player.c list.c
